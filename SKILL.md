@@ -21,100 +21,42 @@ tools:
 # 상세페이지 생성기 (Landing Page Generator)
 
 ## 개요
-제품/서비스 정보를 기반으로 고전환 상세페이지를 자동 생성하는 스킬입니다.
+제품 자료를 한 번 제공하면 전체 상세페이지(1200px 세로 PNG)를 한 번에 제작합니다.
+섹션마다 사용자 승인을 받지 않습니다. 질문은 **필수 정보가 실제로 누락되어 제작이 불가능한 경우**에만 합니다.
 
-## 실행 흐름
+## 실행 (예: "아벤투라 상세페이지 전체 제작해줘")
+
+1. 사용자가 제공한 자료를 `references/private/<product>/` 에 형식대로 저장
+   (형식: `references/templates/product_input/README.md`). 원문은 **한 글자도 바꾸지 않고** 복사.
+   기획본이 형식과 다르면 섹션 제목/라벨만 붙이고 문구 자체는 그대로 둔다.
+2. `python3 scripts/build_detail_page.py --product <product>` 실행
+3. 종료 코드 2(`[제작 불가]`)면 누락 항목만 사용자에게 요청
+4. 완료 후 `output/build_report.md` 기준으로 보고:
+   생성 섹션 수, 최종 이미지 크기, 사용한 제품 사진, 제외된 문구, 금지어 검사 결과, 원문 누락 여부, 최종 파일 위치
+
+## 파이프라인
 
 ```
-[입력] 제품/서비스 정보
-         ↓
-[Step 1] 입력 수집 - agents/01-intake.md
-         ↓
-[Step 2] 타겟 리서치 - agents/02-research.md
-         ↓
-[Step 3] 13섹션 카피 - agents/03-copy.md
-         ↓
-[Step 4] 디자인 방향 - agents/04-design-direction.md
-         ↓
-[Step 5] Gemini 프롬프트 생성 - agents/05-prompt-generator.md
-         ↓
-[Step 6] Gemini API로 13개 이미지 생성
-         ↓
-[Step 7] 이미지 스티칭 → 최종 PNG/PDF
+입력 검증 → 기획본 섹션 자동 분류(parse_source.py) → 섹션 구성 결정 → 금지어 필터
+→ 사진 자동 크롭(photo_crop.py) → (선택) Gemini 보조 배경 → 섹션 렌더링(render_section.py, HTML/CSS)
+→ 병합(stitch_images.py) → QA(qa.py: 금지어·원문 대조·사진 픽셀·너비) → 보고서
 ```
 
-## 필수 입력 정보
+섹션 타입: hero, intro, product, key_points, detail, ingredients, how_to_use, faq, product_info, closing
+(기획본에 원문이 없는 섹션은 자동 생략. "이런 분께 추천" 섹션은 생성 금지)
 
-| 필드 | 설명 | 예시 |
-|------|------|------|
-| product_name | 제품/서비스명 | "AI 마케팅 자동화 툴" |
-| one_liner | 한 줄 정의 | "광고비 50% 절감하는 AI 마케팅" |
-| target_audience | 핵심 타겟 | "월 광고비 100만원 이상 쓰는 스마트스토어 셀러" |
-| main_problem | 해결하는 핵심 문제 | "광고 최적화에 하루 2시간 소비" |
-| key_benefit | 핵심 혜택 | "AI가 24시간 자동 최적화, 광고비 50% 절감" |
-| price | 가격 | "월 99,000원 (정가 199,000원)" |
-| urgency | 한정 요소 | "선착순 100명 50% 할인" |
+## 안전장치 (변경 금지)
 
-## 선택 입력 정보
+- 탈모·발모·개선·완화·재생·치료·예방·기능성 암시 표현 금지 (`scripts/copy_guard.py` + `banned.txt`)
+  - 마케팅 카피에 포함 → 해당 문구 제외 후 보고 / 법정 표기(전성분·사용법·제품정보)에 포함 → 빌드 중단
+- 제품명·전성분·사용법·제품정보·카피는 제공 원문만 사용, 효능 추가/요약/각색 금지
+- 한국어 텍스트는 HTML/CSS 렌더링 (이미지 모델이 글자를 그리지 않음)
+- 제품 사진은 크롭/리사이즈만. 병·라벨 AI 재생성 금지. Gemini는 글자·제품·인물 없는 배경에만 (기본 off)
+- GEMINI_API_KEY 는 환경변수에서만 읽고 어디에도 기록하지 않음
+- 원본 사진·기획본·폰트·브리프는 커밋 금지 (`references/private/`, `assets/private/`, `briefs/*.json`)
 
-- testimonials: 고객 후기
-- creator_bio: 제작자 소개
-- bonus_items: 보너스 구성
-- guarantee: 환불/보장 정책
-- faq: FAQ 항목
-- brand_color: 브랜드 컬러 (미입력시 자동 제안)
+## 출력
 
-## 13개 섹션 구조
-
-상세 가이드: [references/13-section-guide.md](references/13-section-guide.md)
-
-| # | 섹션명 | 높이 | 핵심 요소 |
-|---|--------|------|-----------|
-| 01 | Hero | 800px | 헤드라인, CTA, 긴급성 배지 |
-| 02 | Pain | 600px | 페인포인트 3-4개 |
-| 03 | Problem | 500px | 진짜 원인, 구조적 문제 |
-| 04 | Story | 700px | Before→After 변화 |
-| 05 | Solution | 400px | 제품 한 줄 정의 |
-| 06 | How It Works | 600px | 단계별 프로세스 |
-| 07 | Social Proof | 800px | 후기, 수치 |
-| 08 | Authority | 500px | 제작자 소개 |
-| 09 | Benefits | 700px | 혜택, 보너스 |
-| 10 | Risk Removal | 500px | 환불 정책, FAQ |
-| 11 | Comparison | 400px | Before/After 대비 |
-| 12 | Target Filter | 400px | 추천/비추천 대상 |
-| 13 | Final CTA | 600px | 최종 CTA |
-
-## 사용 방법
-
-### 1. 정보 수집 대화
-```
-사용자: 상세페이지 만들어줘
-→ 필수 정보 질문 시작
-```
-
-### 2. 전체 프로세스 자동 실행
-정보 수집 후 자동으로:
-1. 타겟 리서치
-2. 카피라이팅
-3. 디자인 방향 설정
-4. Gemini 이미지 생성
-5. 최종 조립
-
-### 3. 출력
-- `output/sections/` - 섹션별 PNG (13장)
-- `output/final_page.png` - 최종 상세페이지
-- `output/final_page.pdf` - PDF 버전
-
-## 기술 스펙
-
-- **이미지 너비**: 1200px (고정)
-- **총 높이**: ~7,000px (가변)
-- **API**: Gemini 3.0 Pro (이미지 생성)
-- **스크립트**: Python (Pillow)
-
-## 참조 문서
-
-- [13섹션 가이드](references/13-section-guide.md)
-- [카피 패턴](references/copy-patterns.md)
-- [Gemini 프롬프트 패턴](references/gemini-prompt-patterns.md)
-- [디자인 스펙](references/design-specs.md)
+- `output/sections/NN_<type>.png` 섹션별 PNG
+- `output/final_page.png` 최종 병합본
+- `output/build_report.md`, `output/build_report.json` QA 보고서

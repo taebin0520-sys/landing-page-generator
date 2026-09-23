@@ -1,5 +1,7 @@
 """
-상세페이지 생성 파이프라인
+상세페이지 수동 브리프 렌더러 (섹션 단위 재렌더링용)
+
+전체 자동 제작은 scripts/build_detail_page.py 를 사용하세요.
 
 브리프(JSON) → 카피 검증(copy_guard) → 섹션별 HTML/CSS 렌더링 → 1200px PNG → 스티칭
 
@@ -24,7 +26,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.copy_guard import audit_brief
-from scripts.render_section import RENDERERS
+from scripts.render_section import BODY_BUILDERS, Renderer
 from scripts.stitch_images import stitch_sections
 
 
@@ -39,24 +41,24 @@ def render_sections(brief: Dict, only: Optional[List[str]], output_dir: str) -> 
     design = brief.get("design", {})
     rendered = []
 
-    for section in brief.get("sections", []):
-        section_id = section["id"]
-        if only and section_id not in only:
-            continue
-        if not section.get("enabled", True):
-            print(f"Skip (disabled): {section_id}")
-            continue
+    with Renderer() as renderer:
+        for section in brief.get("sections", []):
+            section_id = section["id"]
+            if only and section_id not in only:
+                continue
+            if not section.get("enabled", True):
+                print(f"Skip (disabled): {section_id}")
+                continue
+            if section.get("type") not in BODY_BUILDERS:
+                print(f"Skip (renderer 미구현): {section_id} / type={section.get('type')}")
+                continue
 
-        renderer = RENDERERS.get(section.get("type"))
-        if renderer is None:
-            print(f"Skip (renderer 미구현): {section_id} / type={section.get('type')}")
-            continue
-
-        print(f"\n=== {section_id} ===")
-        if section.get("status"):
-            print(f"Status: {section['status']}")
-        output_path = os.path.join(sections_dir, f"{section_id}.png")
-        rendered.append(renderer(section, design, work_dir, output_path))
+            print(f"\n=== {section_id} ===")
+            if section.get("status"):
+                print(f"Status: {section['status']}")
+            output_path = os.path.join(sections_dir, f"{section_id}.png")
+            renderer.render(section, design, work_dir, output_path)
+            rendered.append(output_path)
 
     return rendered
 

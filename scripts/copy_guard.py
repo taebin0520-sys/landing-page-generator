@@ -42,6 +42,15 @@ BANNED_TERMS: List[str] = [
 ]
 
 
+# 제품별 추가 금지 표현 (banned.txt 에서 로드)
+EXTRA_BANNED_TERMS: List[str] = []
+
+
+def set_extra_banned_terms(terms: Iterable[str]) -> None:
+    """제품 입력의 금지 표현을 기본 목록에 추가합니다."""
+    EXTRA_BANNED_TERMS[:] = [_normalize(t) for t in terms if t and t.strip()]
+
+
 class BannedCopyError(ValueError):
     """금지 표현이 포함된 카피"""
 
@@ -53,7 +62,7 @@ def _normalize(text: str) -> str:
 def find_banned_terms(text: str) -> List[str]:
     """텍스트에 포함된 금지 표현 목록을 반환합니다."""
     normalized = _normalize(text)
-    return [term for term in BANNED_TERMS if term in normalized]
+    return [term for term in BANNED_TERMS + EXTRA_BANNED_TERMS if term in normalized]
 
 
 def resolve_copy(item: Any, field_name: str = "") -> Optional[str]:

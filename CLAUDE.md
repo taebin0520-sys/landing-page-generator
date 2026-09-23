@@ -12,9 +12,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # 의존성 설치
 pip install -r requirements.txt
 
-# 상세페이지 생성 (브리프 기반, 섹션 단위)
-python3 scripts/generate_page.py --brief briefs/aventura.json --sections 01_hero
-python3 scripts/generate_page.py --brief briefs/aventura.json --stitch
+# one-shot 전체 제작 (입력: references/private/<product>/)
+python3 scripts/build_detail_page.py --product aventura
+python3 scripts/build_detail_page.py --product aventura --check   # 검증·분류만
+
+# 테스트
+python3 -m unittest tests.test_pipeline -v
 
 # API 연결 테스트
 python3 scripts/gemini_api.py
@@ -80,6 +83,13 @@ detail_page/
 
 `GEMINI_API_KEY`는 환경변수에서만 읽습니다 (Claude Code 웹: 환경 설정의 환경 변수).
 키를 코드, 로그, JSON, HTML, `.env` 커밋, Git history에 기록하지 않습니다.
+
+## One-shot 제작 규칙
+
+- "OO 상세페이지 전체 제작해줘" → SKILL.md 절차대로 입력 폴더 구성 후 `build_detail_page.py` 1회 실행
+- 섹션별 승인 요청 금지. 질문은 필수 입력 누락(종료 코드 2)일 때만
+- 입력 형식: `references/templates/product_input/README.md`
+- 결과: `output/final_page.png`, 보고서 `output/build_report.md`
 
 ## 비공개 자료 & 카피 규칙 (현재 파이프라인)
 
