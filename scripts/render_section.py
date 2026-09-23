@@ -140,6 +140,13 @@ LAYOUT_DEFAULTS = {
     "photo_frame_margin": 60,
     "spec_below_photo": False,  # spec 줄을 사진 아래에 배치하여 섹션을 마무리
     "background": None,  # None 이면 사진 가장자리 색 / 프레임형은 colors.background
+    # 텍스트 섹션 (390px 모바일 축소 시 약 12~14px 이상 되도록: 1200px 기준 x0.325)
+    "block_padding_x": 80,
+    "body_size": 38,
+    "body_line_height": 1.75,
+    "step_size": 40,
+    "table_size": 38,
+    "table_label_width": 330,
 }
 
 
@@ -223,21 +230,22 @@ body {{ font-family: 'PageFont', sans-serif; color: {text}; -webkit-font-smoothi
 .point .num {{ font-size: 22px; font-weight: 500; color: {muted}; letter-spacing: 0.1em; min-width: 48px; padding-top: 8px; }}
 .point .title {{ font-size: 36px; font-weight: 600; line-height: 1.4; }}
 .point .desc {{ font-size: 26px; font-weight: 300; line-height: 1.6; color: {sub}; margin-top: 10px; }}
-.block {{ padding: 0 140px {lay['padding_bottom']}px; }}
-.body-text {{ font-size: 24px; font-weight: 300; line-height: 1.8; color: {sub}; }}
-.step {{ display: flex; gap: 32px; padding: 34px 0; border-top: 1px solid {line}; align-items: baseline; }}
+.block {{ padding: 0 {lay['block_padding_x']}px {lay['padding_bottom']}px; }}
+.nowrap {{ white-space: nowrap; }}
+.body-text {{ font-size: {lay['body_size']}px; font-weight: 400; line-height: {lay['body_line_height']}; color: {sub}; }}
+.step {{ display: flex; gap: 32px; padding: 40px 0; border-top: 1px solid {line}; align-items: baseline; }}
 .step:last-child {{ border-bottom: 1px solid {line}; }}
 .step .num {{ font-size: 24px; font-weight: 600; color: {muted}; min-width: 64px; letter-spacing: 0.06em; }}
-.step .txt {{ font-size: 30px; font-weight: 400; line-height: 1.6; }}
+.step .txt {{ font-size: {lay['step_size']}px; font-weight: 400; line-height: 1.55; }}
 .qa {{ padding: 36px 0; border-top: 1px solid {line}; }}
 .qa:last-child {{ border-bottom: 1px solid {line}; }}
-.qa .q {{ font-size: 30px; font-weight: 600; line-height: 1.5; }}
-.qa .a {{ font-size: 26px; font-weight: 300; line-height: 1.7; color: {sub}; margin-top: 14px; }}
+.qa .q {{ font-size: 40px; font-weight: 600; line-height: 1.5; }}
+.qa .a {{ font-size: 36px; font-weight: 300; line-height: 1.7; color: {sub}; margin-top: 14px; }}
 table {{ width: 100%; border-collapse: collapse; }}
-td {{ border-top: 1px solid {line}; border-bottom: 1px solid {line}; padding: 22px 0; vertical-align: top;
-      font-size: 22px; line-height: 1.7; }}
-td.k {{ width: 240px; color: {muted}; font-weight: 500; padding-right: 24px; }}
-td.v {{ color: {sub}; font-weight: 300; }}
+td {{ border-top: 1px solid {line}; border-bottom: 1px solid {line}; padding: 28px 0; vertical-align: top;
+      font-size: {lay['table_size']}px; line-height: 1.6; }}
+td.k {{ width: {lay['table_label_width']}px; color: {muted}; font-weight: 500; padding-right: 24px; }}
+td.v {{ color: {sub}; font-weight: 400; }}
 </style></head>
 <body>{body}</body></html>"""
 
@@ -305,7 +313,10 @@ def _label_header(section: Dict, c: Collector) -> str:
 
 def body_ingredients(section: Dict, c: Collector, lay: Dict, photo_uri: Optional[str]) -> str:
     text = c.take(section.get("body"), "body")
-    return _label_header(section, c) + f'<section class="block">{_div(text, "body-text keep")}</section>'
+    # 성분명 중간(하이픈 등)에서 줄바꿈되지 않도록 성분 단위로 묶음 (텍스트는 동일)
+    parts = ", ".join(f'<span class="nowrap">{html.escape(p)}</span>' for p in (text or "").split(", "))
+    body = f'<div class="body-text">{parts}</div>' if text else ""
+    return _label_header(section, c) + f'<section class="block">{body}</section>'
 
 
 def body_how_to_use(section: Dict, c: Collector, lay: Dict, photo_uri: Optional[str]) -> str:
