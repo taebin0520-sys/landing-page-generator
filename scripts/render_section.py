@@ -40,7 +40,8 @@ def prepare_photo(src: str, dst: str, crop: Optional[Dict] = None, target_width:
     Args:
         crop: 원본 픽셀 기준 {"left", "top", "right", "bottom"} (없으면 전체)
     """
-    img = Image.open(src).convert("RGB")
+    img = Image.open(src)
+    img = img.convert("RGBA" if "A" in img.getbands() else "RGB")  # 누끼 PNG는 투명도 유지
     if crop:
         box = (
             crop.get("left") or 0,
@@ -112,7 +113,7 @@ HERO_LAYOUT_DEFAULTS = {
     "spec_size": 22,
     "text_position": "top",  # top | bottom (사진 위/아래)
     "photo_frame_width": None,  # 지정 시 사진을 이 너비의 프레임 안에 배치 (풀블리드 대신)
-    "photo_frame_border": "#2e2e2e",
+    "photo_frame_border": "#2e2e2e",  # "none" 이면 테두리 없음
     "photo_frame_margin": 60,
     "spec_below_photo": False,  # spec 줄을 사진 아래에 배치하여 섹션을 마무리
 }
@@ -172,9 +173,9 @@ body {{ font-family: 'PageFont', sans-serif; color: {colors.get('text', '#f2f2f2
 .spec {{ font-size: {lay['spec_size']}px; font-weight: 500; letter-spacing: 0.06em; margin-top: 20px;
          color: {colors.get('muted', '#9a9a9a')}; }}
 .photo {{ display: block; width: {FIXED_WIDTH}px; height: auto; }}
-.frame {{ padding: {lay['photo_frame_margin']}px 0 0; }}
+.frame {{ padding: {lay["photo_frame_margin"]}px 0 {lay["photo_frame_margin"]}px; }}
 .frame .photo {{ width: {lay['photo_frame_width'] or FIXED_WIDTH}px; margin: 0 auto;
-                outline: 1px solid {lay['photo_frame_border']}; }}
+                outline: {'none' if lay['photo_frame_border'] == 'none' else '1px solid ' + lay['photo_frame_border']}; }}
 .below {{ text-align: center; padding: 36px 0 {lay['padding_bottom']}px; }}
 .below .spec {{ margin-top: 0; }}
 </style></head>
@@ -211,13 +212,19 @@ def verify_photo_region(rendered_path: str, photo_path: str, box: Dict) -> float
     반환값: 픽셀 평균 차이 (0 = 동일)
     """
     rendered = Image.open(rendered_path).convert("RGB")
-    photo = Image.open(photo_path).convert("RGB")
+    photo = Image.open(photo_path)
+    if photo.mode == "RGBA":  # 투명 영역은 배경색과 합성되므로 불투명 픽셀만 비교
+        alpha = photo.getchannel("A").point(lambda a: 255 if a == 255 else 0)
+        photo = photo.convert("RGB")
+    else:
+        alpha = None
     # 레이아웃 좌표가 소수점일 수 있어 내림/올림 위치를 모두 비교
     diffs = []
     for x in {math.floor(box["x"]), math.ceil(box["x"])}:
         for y in {math.floor(box["y"]), math.ceil(box["y"])}:
             region = rendered.crop((x, y, x + photo.width, y + photo.height))
-            diffs.append(sum(ImageStat.Stat(ImageChops.difference(region, photo)).mean) / 3)
+            stat = ImageStat.Stat(ImageChops.difference(region, photo), alpha)
+            diffs.append(sum(stat.mean) / 3)
     return min(diffs)
 
 
@@ -232,7 +239,7 @@ def render_hero(section: Dict, design: Dict, work_dir: str, output_path: str) ->
         str(src), os.path.join(work_dir, f"{section['id']}_photo.png"), image.get("crop"), frame_width
     )
     position = (section.get("layout") or {}).get("text_position", "top")
-    bg_color = edge_color(photo_path, position)
+    bg_color = (section.get("layout") or {}).get("background") or edge_color(photo_path, position)
     doc, rendered = build_hero_html(section, design, Path(photo_path).resolve().as_uri(), bg_color)
     if rendered == 0:
         print(f"Warning: {section['id']} - source가 있는 카피가 없어 사진만 렌더링합니다")
