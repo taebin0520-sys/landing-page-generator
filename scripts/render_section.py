@@ -90,6 +90,27 @@ def _font_faces(design: Dict) -> str:
     return "\n".join(faces)
 
 
+# Hero 레이아웃 기본값 (섹션의 "layout"으로 덮어쓸 수 있음)
+HERO_LAYOUT_DEFAULTS = {
+    "padding_top": 150,
+    "padding_bottom": 40,
+    "eyebrow_size": 20,
+    "headline_size": 60,
+    "headline_weight": 600,
+    "headline_line_height": 1.32,
+    "headline_letter_spacing": "-0.02em",
+    "subcopy_size": 26,
+    "product_name_size": 22,
+    "product_name_weight": 500,
+    "product_name_color": None,  # None이면 colors.muted
+    "product_name_letter_spacing": "0.08em",
+    "product_name_gap": 48,
+    "divider": False,  # 헤드라인과 제품명 사이 가는 구분선
+    "divider_width": 48,
+    "divider_color": "#6f6f6f",
+}
+
+
 def build_hero_html(section: Dict, design: Dict, photo_uri: str, bg_color: str) -> Tuple[str, int]:
     """Hero HTML 생성. 반환: (html, 렌더된 카피 수)"""
     copy = section.get("copy", {})
@@ -99,6 +120,9 @@ def build_hero_html(section: Dict, design: Dict, photo_uri: str, bg_color: str) 
     }
     rendered = sum(1 for v in lines.values() if v)
     colors = design.get("colors", {})
+    lay = {**HERO_LAYOUT_DEFAULTS, **(section.get("layout") or {})}
+    product_name_color = lay["product_name_color"] or colors.get("muted", "#9a9a9a")
+    divider = '<div class="divider"></div>' if lay["divider"] and lines["product_name"] else ""
 
     text_block = ""
     if rendered:
@@ -107,6 +131,7 @@ def build_hero_html(section: Dict, design: Dict, photo_uri: str, bg_color: str) 
     {_text_html(lines['eyebrow'], 'eyebrow')}
     {_text_html(lines['headline'], 'headline')}
     {_text_html(lines['subcopy'], 'subcopy')}
+    {divider}
     {_text_html(lines['product_name'], 'product-name')}
   </header>"""
 
@@ -118,15 +143,20 @@ def build_hero_html(section: Dict, design: Dict, photo_uri: str, bg_color: str) 
 html, body {{ width: {FIXED_WIDTH}px; background: {bg_color}; }}
 body {{ font-family: 'PageFont', sans-serif; color: {colors.get('text', '#f2f2f2')};
        -webkit-font-smoothing: antialiased; }}
-.text {{ padding: 150px 120px 40px; text-align: center; background: {bg_color};
-        word-break: keep-all; overflow-wrap: break-word; white-space: pre-line; }}
-.eyebrow {{ font-size: 20px; font-weight: 500; letter-spacing: 0.32em;
+.text {{ padding: {lay['padding_top']}px 120px {lay['padding_bottom']}px; text-align: center;
+        background: {bg_color}; word-break: keep-all; overflow-wrap: break-word; }}
+.text > div {{ white-space: pre-line; }}  /* 원문 줄바꿈만 유지 (템플릿 공백은 무시) */
+.eyebrow {{ font-size: {lay['eyebrow_size']}px; font-weight: 500; letter-spacing: 0.32em;
            color: {colors.get('muted', '#9a9a9a')}; margin-bottom: 36px; }}
-.headline {{ font-size: 60px; font-weight: 600; line-height: 1.32; letter-spacing: -0.02em; }}
-.subcopy {{ font-size: 26px; font-weight: 300; line-height: 1.6; margin-top: 32px;
+.headline {{ font-size: {lay['headline_size']}px; font-weight: {lay['headline_weight']};
+            line-height: {lay['headline_line_height']}; letter-spacing: {lay['headline_letter_spacing']}; }}
+.subcopy {{ font-size: {lay['subcopy_size']}px; font-weight: 300; line-height: 1.6; margin-top: 32px;
            color: {colors.get('subtext', '#c8c8c8')}; }}
-.product-name {{ font-size: 22px; font-weight: 500; letter-spacing: 0.08em; margin-top: 48px;
-                color: {colors.get('muted', '#9a9a9a')}; }}
+.divider {{ width: {lay['divider_width']}px; height: 1px; background: {lay['divider_color']};
+           margin: {lay['product_name_gap']}px auto 0; }}
+.product-name {{ font-size: {lay['product_name_size']}px; font-weight: {lay['product_name_weight']};
+                letter-spacing: {lay['product_name_letter_spacing']}; color: {product_name_color};
+                margin-top: {lay['product_name_gap'] if not divider else lay['product_name_gap'] // 2}px; }}
 .photo {{ display: block; width: {FIXED_WIDTH}px; height: auto; }}
 </style></head>
 <body>{text_block}

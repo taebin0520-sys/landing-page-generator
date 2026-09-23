@@ -3,12 +3,22 @@
     "이 파일은 구조 예시입니다. 실제 카피를 넣지 마세요.",
     "cp briefs/aventura.example.json briefs/aventura.json 후 briefs/aventura.json 에만 확정 원문을 입력합니다 (gitignore 대상).",
     "모든 카피는 {\"text\": 원문, \"source\": 출처} 형식. source가 비어 있으면 렌더링되지 않습니다.",
-    "원문을 요약·수정하지 않고 그대로 입력합니다."
+    "원문을 요약·수정하지 않고 그대로 입력합니다.",
+    "sections[].layout 으로 Hero 여백/글자 크기/구분선 조정 (기본값: scripts/render_section.py HERO_LAYOUT_DEFAULTS)"
   ],
   "product": {
-    "name_ko": { "text": "", "source": "" },
-    "name_en": { "text": "", "source": "" },
-    "volume": { "text": "", "source": "" }
+    "name_ko": {
+      "text": "",
+      "source": ""
+    },
+    "name_en": {
+      "text": "",
+      "source": ""
+    },
+    "volume": {
+      "text": "",
+      "source": ""
+    }
   },
   "design": {
     "fonts": {
@@ -29,23 +39,77 @@
       "enabled": true,
       "image": {
         "path": "assets/private/product/hero.png",
-        "crop": { "left": null, "top": null, "right": null, "bottom": null }
+        "crop": {
+          "left": null,
+          "top": null,
+          "right": null,
+          "bottom": null
+        }
       },
       "copy": {
-        "eyebrow": { "text": "", "source": "" },
-        "headline": { "text": "", "source": "" },
-        "subcopy": { "text": "", "source": "" },
-        "product_name": { "text": "", "source": "" }
-      }
+        "eyebrow": {
+          "text": "",
+          "source": ""
+        },
+        "headline": {
+          "text": "",
+          "source": ""
+        },
+        "subcopy": {
+          "text": "",
+          "source": ""
+        },
+        "product_name": {
+          "text": "",
+          "source": ""
+        }
+      },
+      "layout": {}
     },
-    { "id": "02_intro", "type": "intro", "enabled": false },
-    { "id": "03_product", "type": "product", "enabled": false },
-    { "id": "04_texture", "type": "texture", "enabled": false },
-    { "id": "05_detail", "type": "detail", "enabled": false },
-    { "id": "06_ingredients", "type": "ingredients", "enabled": false },
-    { "id": "07_how_to_use", "type": "how_to_use", "enabled": false },
-    { "id": "08_faq", "type": "faq", "enabled": false },
-    { "id": "09_product_info", "type": "product_info", "enabled": false },
-    { "id": "10_closing", "type": "closing", "enabled": false }
+    {
+      "id": "02_intro",
+      "type": "intro",
+      "enabled": false
+    },
+    {
+      "id": "03_product",
+      "type": "product",
+      "enabled": false
+    },
+    {
+      "id": "04_texture",
+      "type": "texture",
+      "enabled": false
+    },
+    {
+      "id": "05_detail",
+      "type": "detail",
+      "enabled": false
+    },
+    {
+      "id": "06_ingredients",
+      "type": "ingredients",
+      "enabled": false
+    },
+    {
+      "id": "07_how_to_use",
+      "type": "how_to_use",
+      "enabled": false
+    },
+    {
+      "id": "08_faq",
+      "type": "faq",
+      "enabled": false
+    },
+    {
+      "id": "09_product_info",
+      "type": "product_info",
+      "enabled": false
+    },
+    {
+      "id": "10_closing",
+      "type": "closing",
+      "enabled": false
+    }
   ]
 }
