@@ -10,6 +10,7 @@
 
 import glob
 import html
+import math
 import os
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -32,7 +33,7 @@ def find_chromium() -> Optional[str]:
     return candidates[-1] if candidates else None
 
 
-def prepare_photo(src: str, dst: str, crop: Optional[Dict] = None) -> Tuple[str, Tuple[int, int]]:
+def prepare_photo(src: str, dst: str, crop: Optional[Dict] = None, target_width: int = FIXED_WIDTH) -> Tuple[str, Tuple[int, int]]:
     """
     원본 사진을 크롭 후 1200px 너비로 리사이즈합니다. 그 외 변형은 하지 않습니다.
 
@@ -49,12 +50,12 @@ def prepare_photo(src: str, dst: str, crop: Optional[Dict] = None) -> Tuple[str,
         )
         img = img.crop(box)
 
-    if img.width < FIXED_WIDTH:
-        print(f"Warning: 원본 너비 {img.width}px < {FIXED_WIDTH}px - 확대가 발생합니다")
+    if img.width < target_width:
+        print(f"Warning: 크롭 너비 {img.width}px < {target_width}px - 확대가 발생합니다")
 
-    height = round(img.height * FIXED_WIDTH / img.width)
-    if img.size != (FIXED_WIDTH, height):
-        img = img.resize((FIXED_WIDTH, height), Image.Resampling.LANCZOS)
+    height = round(img.height * target_width / img.width)
+    if img.size != (target_width, height):
+        img = img.resize((target_width, height), Image.Resampling.LANCZOS)
 
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
     img.save(dst, "PNG")
@@ -110,6 +111,10 @@ HERO_LAYOUT_DEFAULTS = {
     "divider_color": "#6f6f6f",
     "spec_size": 22,
     "text_position": "top",  # top | bottom (사진 위/아래)
+    "photo_frame_width": None,  # 지정 시 사진을 이 너비의 프레임 안에 배치 (풀블리드 대신)
+    "photo_frame_border": "#2e2e2e",
+    "photo_frame_margin": 60,
+    "spec_below_photo": False,  # spec 줄을 사진 아래에 배치하여 섹션을 마무리
 }
 
 
@@ -135,8 +140,12 @@ def build_hero_html(section: Dict, design: Dict, photo_uri: str, bg_color: str) 
     {_text_html(lines['subcopy'], 'subcopy')}
     {divider}
     {_text_html(lines['product_name'], 'product-name')}
-    {_text_html(lines['spec'], 'spec')}
+    {'' if lay['spec_below_photo'] else _text_html(lines['spec'], 'spec')}
   </header>"""
+    footer = ""
+    if lay["spec_below_photo"] and lines["spec"]:
+        footer = f'<footer class="below">{_text_html(lines["spec"], "spec")}</footer>'
+    framed = bool(lay["photo_frame_width"])
 
     doc = f"""<!DOCTYPE html>
 <html lang="ko"><head><meta charset="utf-8">
@@ -163,14 +172,19 @@ body {{ font-family: 'PageFont', sans-serif; color: {colors.get('text', '#f2f2f2
 .spec {{ font-size: {lay['spec_size']}px; font-weight: 500; letter-spacing: 0.06em; margin-top: 20px;
          color: {colors.get('muted', '#9a9a9a')}; }}
 .photo {{ display: block; width: {FIXED_WIDTH}px; height: auto; }}
+.frame {{ padding: {lay['photo_frame_margin']}px 0 0; }}
+.frame .photo {{ width: {lay['photo_frame_width'] or FIXED_WIDTH}px; margin: 0 auto;
+                outline: 1px solid {lay['photo_frame_border']}; }}
+.below {{ text-align: center; padding: 36px 0 {lay['padding_bottom']}px; }}
+.below .spec {{ margin-top: 0; }}
 </style></head>
 <body>{text_block if lay['text_position'] == 'top' else ''}
-  <img class="photo" src="{photo_uri}" alt="">{text_block if lay['text_position'] == 'bottom' else ''}
+  {'<div class="frame">' if framed else ''}<img class="photo" src="{photo_uri}" alt="">{'</div>' if framed else ''}{footer}{text_block if lay['text_position'] == 'bottom' else ''}
 </body></html>"""
     return doc, rendered
 
 
-def screenshot_html(html_path: str, output_path: str) -> str:
+def screenshot_html(html_path: str, output_path: str) -> Dict:
     """HTML을 1200px 뷰포트로 전체 캡처합니다."""
     from playwright.sync_api import sync_playwright
 
@@ -183,23 +197,28 @@ def screenshot_html(html_path: str, output_path: str) -> str:
         page.wait_for_load_state("networkidle")
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=output_path, full_page=True)
+        box = page.evaluate(
+            "(() => { const r = document.querySelector('.photo').getBoundingClientRect();"
+            " return {x: r.x + scrollX, y: r.y + scrollY, w: r.width, h: r.height}; })()"
+        )
         browser.close()
-    return output_path
+    return box
 
 
-def verify_photo_region(rendered_path: str, photo_path: str) -> float:
+def verify_photo_region(rendered_path: str, photo_path: str, box: Dict) -> float:
     """
     렌더 결과 하단의 사진 영역이 Pillow 리사이즈 결과와 같은지 비교합니다.
     반환값: 픽셀 평균 차이 (0 = 동일)
     """
     rendered = Image.open(rendered_path).convert("RGB")
     photo = Image.open(photo_path).convert("RGB")
-    best = None
-    for top in (rendered.height - photo.height, 0):  # 텍스트 위 배치 / 아래 배치
-        region = rendered.crop((0, top, FIXED_WIDTH, top + photo.height))
-        diff = sum(ImageStat.Stat(ImageChops.difference(region, photo)).mean) / 3
-        best = diff if best is None else min(best, diff)
-    return best
+    # 레이아웃 좌표가 소수점일 수 있어 내림/올림 위치를 모두 비교
+    diffs = []
+    for x in {math.floor(box["x"]), math.ceil(box["x"])}:
+        for y in {math.floor(box["y"]), math.ceil(box["y"])}:
+            region = rendered.crop((x, y, x + photo.width, y + photo.height))
+            diffs.append(sum(ImageStat.Stat(ImageChops.difference(region, photo)).mean) / 3)
+    return min(diffs)
 
 
 def render_hero(section: Dict, design: Dict, work_dir: str, output_path: str) -> str:
@@ -208,7 +227,10 @@ def render_hero(section: Dict, design: Dict, work_dir: str, output_path: str) ->
     if not src.is_file():
         raise FileNotFoundError(f"제품 원본 사진 없음: {image.get('path')}")
 
-    photo_path, size = prepare_photo(str(src), os.path.join(work_dir, f"{section['id']}_photo.png"), image.get("crop"))
+    frame_width = (section.get("layout") or {}).get("photo_frame_width") or FIXED_WIDTH
+    photo_path, size = prepare_photo(
+        str(src), os.path.join(work_dir, f"{section['id']}_photo.png"), image.get("crop"), frame_width
+    )
     position = (section.get("layout") or {}).get("text_position", "top")
     bg_color = edge_color(photo_path, position)
     doc, rendered = build_hero_html(section, design, Path(photo_path).resolve().as_uri(), bg_color)
@@ -219,9 +241,9 @@ def render_hero(section: Dict, design: Dict, work_dir: str, output_path: str) ->
     with open(html_path, "w", encoding="utf-8") as f:
         f.write(doc)
 
-    screenshot_html(html_path, output_path)
+    box = screenshot_html(html_path, output_path)
     out = Image.open(output_path)
-    diff = verify_photo_region(output_path, photo_path)
+    diff = verify_photo_region(output_path, photo_path, box)
     print(f"Rendered: {output_path} ({out.width}x{out.height}), 사진 {size[0]}x{size[1]}, "
           f"카피 {rendered}개, 사진 영역 평균 차이 {diff:.3f}")
     if out.width != FIXED_WIDTH:

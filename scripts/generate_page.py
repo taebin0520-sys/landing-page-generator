@@ -53,6 +53,8 @@ def render_sections(brief: Dict, only: Optional[List[str]], output_dir: str) -> 
             continue
 
         print(f"\n=== {section_id} ===")
+        if section.get("status"):
+            print(f"Status: {section['status']}")
         output_path = os.path.join(sections_dir, f"{section_id}.png")
         rendered.append(renderer(section, design, work_dir, output_path))
 
@@ -68,6 +70,9 @@ def stitch_all(brief: Dict, output_dir: str) -> Optional[str]:
         if s.get("enabled", True)
     ]
     paths = [p for p in paths if os.path.exists(p)]
+    pending = [s["id"] for s in brief.get("sections", []) if s.get("enabled", True) and s.get("status")]
+    if pending:
+        print(f"Warning: 확정되지 않은 섹션 포함 {pending} - 최종본 아님")
     if not paths:
         print("Error: 렌더된 섹션이 없습니다")
         return None
