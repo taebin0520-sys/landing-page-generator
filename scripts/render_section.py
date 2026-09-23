@@ -108,6 +108,8 @@ HERO_LAYOUT_DEFAULTS = {
     "divider": False,  # 헤드라인과 제품명 사이 가는 구분선
     "divider_width": 48,
     "divider_color": "#6f6f6f",
+    "spec_size": 22,
+    "text_position": "top",  # top | bottom (사진 위/아래)
 }
 
 
@@ -116,7 +118,7 @@ def build_hero_html(section: Dict, design: Dict, photo_uri: str, bg_color: str) 
     copy = section.get("copy", {})
     lines = {
         key: resolve_copy(copy.get(key), f"{section['id']}.copy.{key}")
-        for key in ("eyebrow", "headline", "subcopy", "product_name")
+        for key in ("eyebrow", "headline", "subcopy", "product_name", "spec")
     }
     rendered = sum(1 for v in lines.values() if v)
     colors = design.get("colors", {})
@@ -133,6 +135,7 @@ def build_hero_html(section: Dict, design: Dict, photo_uri: str, bg_color: str) 
     {_text_html(lines['subcopy'], 'subcopy')}
     {divider}
     {_text_html(lines['product_name'], 'product-name')}
+    {_text_html(lines['spec'], 'spec')}
   </header>"""
 
     doc = f"""<!DOCTYPE html>
@@ -157,10 +160,12 @@ body {{ font-family: 'PageFont', sans-serif; color: {colors.get('text', '#f2f2f2
 .product-name {{ font-size: {lay['product_name_size']}px; font-weight: {lay['product_name_weight']};
                 letter-spacing: {lay['product_name_letter_spacing']}; color: {product_name_color};
                 margin-top: {lay['product_name_gap'] if not divider else lay['product_name_gap'] // 2}px; }}
+.spec {{ font-size: {lay['spec_size']}px; font-weight: 500; letter-spacing: 0.06em; margin-top: 20px;
+         color: {colors.get('muted', '#9a9a9a')}; }}
 .photo {{ display: block; width: {FIXED_WIDTH}px; height: auto; }}
 </style></head>
-<body>{text_block}
-  <img class="photo" src="{photo_uri}" alt="">
+<body>{text_block if lay['text_position'] == 'top' else ''}
+  <img class="photo" src="{photo_uri}" alt="">{text_block if lay['text_position'] == 'bottom' else ''}
 </body></html>"""
     return doc, rendered
 
@@ -189,9 +194,12 @@ def verify_photo_region(rendered_path: str, photo_path: str) -> float:
     """
     rendered = Image.open(rendered_path).convert("RGB")
     photo = Image.open(photo_path).convert("RGB")
-    region = rendered.crop((0, rendered.height - photo.height, FIXED_WIDTH, rendered.height))
-    diff = ImageChops.difference(region, photo)
-    return sum(ImageStat.Stat(diff).mean) / 3
+    best = None
+    for top in (rendered.height - photo.height, 0):  # 텍스트 위 배치 / 아래 배치
+        region = rendered.crop((0, top, FIXED_WIDTH, top + photo.height))
+        diff = sum(ImageStat.Stat(ImageChops.difference(region, photo)).mean) / 3
+        best = diff if best is None else min(best, diff)
+    return best
 
 
 def render_hero(section: Dict, design: Dict, work_dir: str, output_path: str) -> str:
@@ -201,7 +209,8 @@ def render_hero(section: Dict, design: Dict, work_dir: str, output_path: str) ->
         raise FileNotFoundError(f"제품 원본 사진 없음: {image.get('path')}")
 
     photo_path, size = prepare_photo(str(src), os.path.join(work_dir, f"{section['id']}_photo.png"), image.get("crop"))
-    bg_color = edge_color(photo_path, "top")
+    position = (section.get("layout") or {}).get("text_position", "top")
+    bg_color = edge_color(photo_path, position)
     doc, rendered = build_hero_html(section, design, Path(photo_path).resolve().as_uri(), bg_color)
     if rendered == 0:
         print(f"Warning: {section['id']} - source가 있는 카피가 없어 사진만 렌더링합니다")
@@ -220,6 +229,9 @@ def render_hero(section: Dict, design: Dict, work_dir: str, output_path: str) ->
     return output_path
 
 
+# 텍스트 + 원본 사진 크롭 구조를 공유하는 섹션들
 RENDERERS = {
     "hero": render_hero,
+    "intro": render_hero,
+    "product": render_hero,
 }
