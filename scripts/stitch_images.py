@@ -77,45 +77,59 @@ def stitch_sections(
     Returns:
         저장된 파일 경로 또는 None (실패시)
     """
-    images = load_images(image_paths, target_width)
+    # 1차 패스: 헤더만 읽어 최종 높이 계산 (픽셀 데이터는 로드하지 않음 → 메모리 절약)
+    plan = []
+    for path in image_paths:
+        if not os.path.exists(path):
+            print(f"Warning: File not found - {path}")
+            continue
+        with Image.open(path) as img:
+            w, h = img.size
+        plan.append((path, w, h, int(h * target_width / w) if w != target_width else h))
 
-    if not images:
+    if not plan:
         print("Error: No images to stitch")
         return None
 
-    # 전체 크기 계산 (모든 이미지가 target_width로 리사이즈됨)
-    total_height = sum(img.height for img in images)
+    total_height = sum(p[3] for p in plan)
     final_width = target_width  # 고정 너비 사용
 
-    print(f"\nStitching {len(images)} images...")
+    print(f"\nStitching {len(plan)} images...")
     print(f"Final size: {final_width}x{total_height} (width fixed to {target_width}px)")
 
-    # 새 캔버스 생성
-    result = Image.new('RGBA', (final_width, total_height), background_color)
+    # RGB 캔버스 사용 (RGBA 대비 메모리 25% 절약, PDF 저장 시 변환 복사본 불필요)
+    result = Image.new('RGB', (final_width, total_height), background_color[:3])
 
-    # 이미지 이어붙이기 (모든 이미지가 동일한 너비이므로 정렬 불필요)
+    # 2차 패스: 한 장씩 로드 → 리사이즈 → 붙이기 → 즉시 해제
     y_offset = 0
-    for i, img in enumerate(images):
-        # 모든 이미지가 target_width로 리사이즈되었으므로 x_offset은 항상 0
-        x_offset = 0
-
-        result.paste(img, (x_offset, y_offset), img if img.mode == 'RGBA' else None)
-        print(f"  Section {i+1}: y={y_offset}, height={img.height}")
-        y_offset += img.height
+    for i, (path, w, h, new_h) in enumerate(plan):
+        with Image.open(path) as img:
+            if img.width != target_width:
+                img = img.resize((target_width, new_h), Image.Resampling.LANCZOS)
+                print(f"Loaded & Resized: {path} ({w}x{h} → {target_width}x{new_h})")
+            else:
+                img.load()
+                print(f"Loaded: {path} ({w}x{h})")
+            if img.mode in ('RGBA', 'LA', 'P'):
+                img = img.convert('RGBA')
+                result.paste(img, (0, y_offset), img)
+            else:
+                result.paste(img.convert('RGB'), (0, y_offset))
+        print(f"  Section {i+1}: y={y_offset}, height={new_h}")
+        y_offset += new_h
 
     # 출력 디렉토리 생성
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
     # 저장
     if output_path.lower().endswith('.pdf'):
-        # PDF 저장 (RGB로 변환 필요)
-        rgb_result = result.convert('RGB')
-        rgb_result.save(output_path, 'PDF', resolution=150)
+        result.save(output_path, 'PDF', resolution=150)
         print(f"\nPDF saved: {output_path}")
     else:
-        # PNG 저장
-        result.save(output_path, 'PNG', optimize=True)
+        # optimize=True는 대용량 이미지에서 매우 느리므로 compress_level로 대체
+        result.save(output_path, 'PNG', compress_level=6)
         print(f"\nPNG saved: {output_path}")
+    result.close()
 
     return output_path
 
@@ -193,15 +207,11 @@ def create_preview(
         print(f"Error: File not found - {image_path}")
         return None
 
-    img = Image.open(image_path)
-
-    if img.height > max_height:
-        ratio = max_height / img.height
-        new_width = int(img.width * ratio)
-        img = img.resize((new_width, max_height), Image.Resampling.LANCZOS)
-
-    Path(preview_path).parent.mkdir(parents=True, exist_ok=True)
-    img.save(preview_path, 'PNG', optimize=True)
+    with Image.open(image_path) as img:
+        # thumbnail은 draft 디코딩 + 제자리 축소로 메모리를 적게 사용
+        img.thumbnail((img.width, max_height), Image.Resampling.LANCZOS)
+        Path(preview_path).parent.mkdir(parents=True, exist_ok=True)
+        img.save(preview_path, 'PNG', optimize=True)
 
     print(f"Preview saved: {preview_path} ({img.width}x{img.height})")
     return preview_path
