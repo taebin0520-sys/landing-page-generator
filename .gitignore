@@ -1,5 +1,17 @@
 # Environment variables (실제 API 키)
 .env
+.env.*
+!.env.example
+
+# 비공개 자료 (원본 제품사진, 미공개 기획본, 폰트, 내부 문서) - 절대 커밋 금지
+assets/private/
+references/private/
+briefs/*.json
+!briefs/*.example.json
+*.ttf
+*.otf
+*.woff
+*.woff2
 
 # Output folders (생성된 결과물)
 output/

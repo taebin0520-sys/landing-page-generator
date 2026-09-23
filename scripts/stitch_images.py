@@ -137,22 +137,8 @@ def stitch_from_directory(
         저장된 파일 경로
     """
     if section_order is None:
-        # 기본 섹션 순서
-        section_order = [
-            "01_hero.png",
-            "02_pain.png",
-            "03_problem.png",
-            "04_story.png",
-            "05_solution.png",
-            "06_how_it_works.png",
-            "07_social_proof.png",
-            "08_authority.png",
-            "09_benefits.png",
-            "10_risk_removal.png",
-            "11_comparison.png",
-            "12_target_filter.png",
-            "13_final_cta.png"
-        ]
+        # 섹션 순서 미지정 시 파일명 정렬 순서 사용 (01_, 02_ ... 접두어 기준)
+        section_order = sorted(f for f in os.listdir(input_dir) if f.endswith('.png'))
 
     image_paths = [os.path.join(input_dir, filename) for filename in section_order]
 

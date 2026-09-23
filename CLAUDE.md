@@ -12,8 +12,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # 의존성 설치
 pip install -r requirements.txt
 
-# 상세페이지 생성 (샘플 데이터)
-python3 scripts/generate_page.py
+# 상세페이지 생성 (브리프 기반, 섹션 단위)
+python3 scripts/generate_page.py --brief briefs/aventura.json --sections 01_hero
+python3 scripts/generate_page.py --brief briefs/aventura.json --stitch
 
 # API 연결 테스트
 python3 scripts/gemini_api.py
@@ -77,10 +78,17 @@ detail_page/
 
 ## Environment Variables
 
-`.env` 파일에 Gemini API 키 설정:
-```
-GEMINI_API_KEY=your_api_key_here
-```
+`GEMINI_API_KEY`는 환경변수에서만 읽습니다 (Claude Code 웹: 환경 설정의 환경 변수).
+키를 코드, 로그, JSON, HTML, `.env` 커밋, Git history에 기록하지 않습니다.
+
+## 비공개 자료 & 카피 규칙 (현재 파이프라인)
+
+- 원본 제품사진, 미공개 기획본, 폰트는 `assets/private/`, `references/private/`에 두며 커밋 금지 (.gitignore)
+- 브리프는 `briefs/<name>.json` (gitignore). 구조는 `briefs/aventura.example.json` 참고
+- 모든 카피는 `{"text", "source"}` 형식. source 없으면 렌더링 제외 (`scripts/copy_guard.py`)
+- 금지 표현(탈모·발모·치료·재생·예방·개선·기능성 암시 등)이 있으면 생성 중단
+- 제품 사진은 크롭/리사이즈만 (`scripts/render_section.py`), 한국어 카피는 HTML/CSS로 렌더링
+- Gemini는 글자·제품·인물 없는 배경/보조 비주얼에만 사용 (`scripts/gemini_api.py`)
 
 ## Customization
 
