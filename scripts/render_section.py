@@ -20,6 +20,7 @@ import glob
 import html
 import math
 import os
+import re
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -312,7 +313,10 @@ def body_how_to_use(section: Dict, c: Collector, lay: Dict, photo_uri: Optional[
     for i, step in enumerate(section.get("steps", [])):
         text = c.take(step, f"steps[{i}]")
         if text:
-            rows.append(f'<div class="step"><div class="num">{len(rows) + 1:02d}</div>{_div(text, "txt keep")}</div>')
+            # 원문에 STEP/번호가 이미 있으면 번호를 덧붙이지 않음
+            numbered = re.match(r"^\s*(step\s*\d+|\d+[.)])", text, re.I)
+            num = "" if numbered else f'<div class="num">{len(rows) + 1:02d}</div>'
+            rows.append(f'<div class="step">{num}{_div(text, "txt keep")}</div>')
     return _label_header(section, c) + f'<section class="block">{"".join(rows)}</section>'
 
 
